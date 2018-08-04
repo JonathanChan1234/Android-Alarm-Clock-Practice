@@ -1,19 +1,20 @@
 package com.jonathan.alarmclock;
 
-import android.app.AlarmManager;
-import android.app.PendingIntent;
+
 import android.app.TimePickerDialog;
-import android.content.Context;
 import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.text.LoginFilter;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.TimePicker;
+import android.widget.Toast;
 
 import java.util.Calendar;
+import java.util.Date;
 
 public class MainActivity extends AppCompatActivity {
     Button startButton, stopButton;
@@ -22,8 +23,8 @@ public class MainActivity extends AppCompatActivity {
     private static int timeHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
     private static int timeMinute = Calendar.getInstance().get(Calendar.MINUTE);
 
-    AlarmManager alarmManager;
-    PendingIntent pendingIntent;
+    public static Intent serviceIntent;
+    Boolean isActivated;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,8 +40,6 @@ public class MainActivity extends AppCompatActivity {
         stopButton.setOnClickListener(alarmStop);
 
         timeText.setText(timeHour + ":" + Utils.minuteCorrection(timeMinute));
-
-        alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
     }
 
     View.OnClickListener alarmStart = new View.OnClickListener() {
@@ -50,10 +49,10 @@ public class MainActivity extends AppCompatActivity {
             final Calendar calendar = Calendar.getInstance();
             int hour = calendar.get(Calendar.HOUR_OF_DAY);
             int minute = calendar.get(Calendar.MINUTE);
+            Log.d("IsActivated", isActivated + "");
             new TimePickerDialog(MainActivity.this, new TimePickerDialog.OnTimeSetListener() {
                 @Override
                 public void onTimeSet(TimePicker timePicker, int i, int i1) {
-                    timeText.setText("Alarm: " + i + ":" + Utils.minuteCorrection(i1));
                     timeHour = i;
                     timeMinute = i1;
                     setAlarm();
@@ -77,24 +76,31 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setAlarm() {
-        Log.d("Alarm", "Alarm started");
-        Calendar calendar = Calendar.getInstance();
-        calendar.set(Calendar.HOUR_OF_DAY, timeHour);
-        calendar.set(Calendar.MINUTE, timeMinute);
-        Log.d("Trigger Time", calendar.getTimeInMillis() + "");
-        Intent intent = new Intent(MainActivity.this, AlarmReceiver.class);
-        intent.putExtra("Request", 0);
-        pendingIntent = PendingIntent.getBroadcast(MainActivity.this, 0, intent, 0);
-        alarmManager.setExact(AlarmManager.RTC_WAKEUP, calendar.getTimeInMillis(), pendingIntent);
+        if(isActivated == null || !isActivated) {
+            isActivated = true;
+            timeText.setText("Alarm: " + timeHour + ":" + Utils.minuteCorrection(timeMinute));
+            Bundle timeBundle = Utils.findTimeDifference(timeHour, timeMinute);
+            int minuteDifference = timeBundle.getInt(Utils.MINUTE);
+            int hourDifference = timeBundle.getInt(Utils.HOUR);
+            Log.d("Time Toast", "Hour: " + hourDifference + " Minute: " + minuteDifference);
+            Log.d("Alarm", "Alarm started");
+            serviceIntent = new Intent(MainActivity.this, AlarmService.class);
+            serviceIntent.putExtra(Utils.MINUTE, timeMinute);
+            serviceIntent.putExtra(Utils.HOUR, timeHour);
+            startService(serviceIntent);
+        }
+        else {
+            Toast.makeText(MainActivity.this, "This is also an alarm activated", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void cancelAlarm() {
-        if(alarmManager != null) {
-            alarmManager.cancel(pendingIntent);
-//            AlarmReceiver.ringtone.stop();
-            Intent intent = new Intent(MainActivity.this, AlarmReceiver.class);
-            intent.putExtra("Request", 1);
-            sendBroadcast(intent);
+        if(isActivated == null || !isActivated) {
+            Toast.makeText(MainActivity.this, "There is currently no alarm clock running", Toast.LENGTH_SHORT).show();
+        }
+        else {
+            isActivated = false;
+            stopService(serviceIntent);
         }
     }
 
